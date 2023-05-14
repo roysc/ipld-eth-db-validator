@@ -1,0 +1,46 @@
+name: Unit and integration tests
+on:
+  workflow_call:
+
+jobs:
+  integration-tests:
+    name: "Run integration tests"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: 'go.mod'
+        check-latest: true
+    - name: "Install stack-orchestrator"
+      # FIXME: using my dev branch for v5 migration changes until a release has them
+      # run: |
+      #   curl -L -O https://github.com/cerc-io/stack-orchestrator/releases/latest/download/laconic-so
+      uses: actions/checkout@v3
+      with:
+        repository: cerc-io/stack-orchestrator
+        ref: roy/dev
+    - run: pip install -e ./stack-orchestrator
+    - name: "Run tests"
+      env:
+        LACONIC_SO: laconic-so
+      run: ./scripts/run_integration_test.sh
+
+  unit-tests:
+    name: "Run unit tests"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: 'go.mod'
+        check-latest: true
+    - name: "Run DB container"
+      working-directory: ./test
+      run: docker compose up -d
+    - name: "Run tests"
+      run: |
+        until [[ "$(docker inspect test-ipld-eth-db | jq -r '.[0].State.Status')" = 'running' ]]
+        do sleep 1; done &
+
+        make test
